@@ -9,9 +9,128 @@
 
 const int maxSize = 50;
 
+void generateMatrix(int array[][maxSize], int arraySize);
+void showMstrix(int array[maxSize][maxSize], int arraySize);
+void muliplyMatrix(int arrayA[maxSize][maxSize], int arrayB[maxSize][maxSize], int arrayX[maxSize][maxSize], int arraySize);
+void transpositionMatrix(int arrayA[maxSize][maxSize], int arrayX[maxSize][maxSize], int arraySize);
+void scalar_multiplicationMatrix(int arrayA[maxSize][maxSize], int arrayX[maxSize][maxSize], int arraySize, int x);
+void GPU_version(int arrayA[maxSize][maxSize], int arrayB[maxSize][maxSize], int arrayX[maxSize][maxSize], int arrayY[maxSize][maxSize], int arraySize, int w, int u);
+void addMatrix(int arrayA[maxSize][maxSize], int arrayB[maxSize][maxSize], int arrayX[maxSize][maxSize], int arraySize);
+void txtfile(int array[][maxSize], int arraySize, FILE * fPtr);
+void checkFile(FILE * fPtr);
+
+__global__ void kernel_add(int* arrayA, int* arrayB, int* arrayX, int arraySize)
+{
+	int col = blockDim.x * blockDim.x + threadIdx.x;
+	int row = blockDim.y * blockDim.y + threadIdx.y;
+	if (col < arraySize && row < arraySize) {
+		arrayX[row * arraySize + col] = arrayA[row * arraySize + col] + arrayB[row * arraySize + col];
+	}
+}
+
+
+
+int main()
+{
+	const int arraySize = 500;
+	srand(time(NULL));
+
+	int a[maxSize][maxSize];
+	int b[maxSize][maxSize];
+	int x[maxSize][maxSize];
+	int y[maxSize][maxSize];
+	int u = 6;
+	int w = -2;
+	int size;
+
+	printf("\nObliczana operacja: X = A * B + u * A^T + A - w *B \n ");
+	printf("Podaj rozmiar macierzy : ");
+	scanf("%d", &size);
+
+
+	generateMatrix(a, size);
+	printf("\nMacierz A:\n ");
+	showMstrix(a, size);
+
+	generateMatrix(b, size);
+	printf("\nMacierz B:\n ");
+	showMstrix(b, size);
+
+	/* File pointer to hold reference to our file */
+	FILE * fPtr;
+	/*
+	 * Open file in w (write) mode.
+	 * "data/file1.txt" is complete path to create file
+	 */
+	fPtr = fopen("A.txt", "w");
+	checkFile(fPtr);
+	
+
+	txtfile(a, size, fPtr);
+	fPtr = fopen("B.txt", "w");
+	checkFile(fPtr);
+	txtfile(b, size, fPtr);
+	
+
+	// X = A *B
+	muliplyMatrix(a, b, x, size);
+
+	// A^T
+	transpositionMatrix(a, y, size);
+
+	// u * a^t
+	scalar_multiplicationMatrix(y, y, size, u);
+
+	// x = a * b + u * a^t
+	addMatrix(x, y, x, size);
+
+	// x = a * b + u * a^t + a
+	addMatrix(x, a, x, size);
+
+	// w* b
+	scalar_multiplicationMatrix(b, y, size, w);
+
+	// x = a * b + u * a^t + a - w *b
+	addMatrix(x, y, x, size);
+
+	printf("\nmacierz x:\n ");
+	showMstrix(x, size);
+	fPtr = fopen("X.txt", "w");
+	checkFile(fPtr);
+	txtfile(x, size, fPtr);
+
+	GPU_version(a, b, x, y, size,w, u) {
+
+	
+	return 0;
+}
+
+void txtfile(int array[][maxSize], int arraySize, FILE * fPtr) {
+
+	for (int i = 0; i < arraySize; i++) {
+		for (int j = 0; j < arraySize; j++) {
+
+			fprintf(fPtr, "%d", array[i][j]);
+			fputs("; ", fPtr);
+		}
+		fputs("\n", fPtr);
+	}
+	fclose(fPtr);
+}
+
+void checkFile(FILE * fPtr) {
+	/* fopen() return NULL if last operation was unsuccessful */
+	if (fPtr == NULL)
+	{
+		/* File not created hence exit */
+		printf("Unable to create file.\n");
+		exit(EXIT_FAILURE);
+	}
+}
+
 void generateMatrix(int array[][maxSize], int arraySize)
 {
-	
+
 	for (int i = 0; i < arraySize; i++) {
 		for (int j = 0; j < arraySize; j++) {
 
@@ -33,11 +152,11 @@ void showMstrix(int array[maxSize][maxSize], int arraySize) {
 
 }
 
-
 void muliplyMatrix(int arrayA[maxSize][maxSize], int arrayB[maxSize][maxSize], int arrayX[maxSize][maxSize], int arraySize) {
 
 	for (int i = 0; i < arraySize; i++) {
 		for (int j = 0; j < arraySize; j++) {
+			arrayX[i][j] = 0;
 			for (int k = 0; k < arraySize; k++) {
 				arrayX[i][j] += arrayA[i][k] * arrayB[k][j];
 			}
@@ -45,31 +164,11 @@ void muliplyMatrix(int arrayA[maxSize][maxSize], int arrayB[maxSize][maxSize], i
 	}
 }
 
-__global__ void kernel_multiply(int* arrayA, int* arrayB, int* arrayX, int arraySize)
-{
-	int col = blockDim.x * blockDim.x + threadIdx.x;
-	int row = blockDim.y * blockDim.y + threadIdx.y;
-
-	for (int i = 0; i < arraySize; i++) {
-		arrayX[row * arraySize + col] += arrayA[row * arraySize + i] * arrayB[i * arraySize + col];
-	}
-
-}
-
 void addMatrix(int arrayA[maxSize][maxSize], int arrayB[maxSize][maxSize], int arrayX[maxSize][maxSize], int arraySize) {
 	for (int i = 0; i < arraySize; i++) {
 		for (int j = 0; j < arraySize; j++) {
 			arrayX[i][j] = arrayA[i][j] + arrayB[i][j];
 		}
-	}
-}
-
-__global__ void kernel_add(int* arrayA, int* arrayB, int* arrayX, int arraySize)
-{
-	int col = blockDim.x * blockDim.x + threadIdx.x;
-	int row = blockDim.y * blockDim.y + threadIdx.y;
-	if (col < arraySize && row < arraySize) {
-		arrayX[row * arraySize + col] = arrayA[row * arraySize + col] + arrayB[row * arraySize + col];
 	}
 }
 
@@ -81,15 +180,6 @@ void transpositionMatrix(int arrayA[maxSize][maxSize], int arrayX[maxSize][maxSi
 	}
 }
 
-__global__ void kernel_transpose(int* arrayA, int* arrayX, int arraySize)
-{
-	int col = blockDim.x * blockDim.x + threadIdx.x;
-	int row = blockDim.y * blockDim.y + threadIdx.y;
-	if (col < arraySize && row < arraySize) {
-		arrayX[row * arraySize + col] = arrayA[col * arraySize + row];
-	}
-}
-
 void scalar_multiplicationMatrix(int arrayA[maxSize][maxSize], int arrayX[maxSize][maxSize], int arraySize, int x) {
 	for (int i = 0; i < arraySize; i++) {
 		for (int j = 0; j < arraySize; j++) {
@@ -98,68 +188,6 @@ void scalar_multiplicationMatrix(int arrayA[maxSize][maxSize], int arrayX[maxSiz
 	}
 }
 
-__global__ void kernel_scalar(int* arrayA, int* arrayX, int arraySize, int x)
-{
-	int col = blockDim.x * blockDim.x + threadIdx.x;
-	int row = blockDim.y * blockDim.y + threadIdx.y;
-	if (col < arraySize && row < arraySize) {
-		arrayX[row * arraySize + col] = x * arrayA[row * arraySize + col];
-	}
-}
-
-
-void GPU_version(int arrayA[maxSize][maxSize], int arrayB[maxSize][maxSize], int arrayX[maxSize][maxSize], int arrayY[maxSize][maxSize], int arraySize, int w, int u);
-
-
-int main()
-{
-	const int arraySize = 50;
-	srand(time(NULL));
-
-	int a[maxSize][maxSize];
-	int b[maxSize][maxSize];
-	int x[maxSize][maxSize];
-	int y[maxSize][maxSize];
-	int u = 6;
-	int w = -2;
-	int size;
-	printf("Podaj rozmiar macierzy : ");
-	scanf("%d", &size);
-
-
-	generateMatrix(a, size);
-	showMstrix(a, size);
-
-	generateMatrix(b, size);
-	showMstrix(b, size);
-
-
-	// X = A *B
-	muliplyMatrix(a, b, x, size);
-
-	// A^T
-	transpositionMatrix(a, y, size);
-
-	// u * A^T
-	scalar_multiplicationMatrix(a, y, size, u);
-
-	// X = A * B + u * A^T
-	addMatrix(x, y, x, size);
-
-	// X = A * B + u * A^T + A
-	addMatrix(x, a, x, size);
-
-	// w* B
-	scalar_multiplicationMatrix(b, y, size, w);
-
-	// X = A * B + u * A^T + A - w *B
-	addMatrix(x, y, x, size);
-
-	showMstrix(y, size);
-
-	
-	return 0;
-}
 void GPU_version(int arrayA[maxSize][maxSize], int arrayB[maxSize][maxSize], int arrayX[maxSize][maxSize], int arrayY[maxSize][maxSize], int arraySize, int w, int u) {
 
 	// CUDA
@@ -195,8 +223,9 @@ void GPU_version(int arrayA[maxSize][maxSize], int arrayB[maxSize][maxSize], int
 
 	// X = A *B
 	
-	kernel_multiply << < grid, block >> > (d_a, d_b, d_x, d_size);
-
+	//kernel_multiply << < grid, block >> > (d_a, d_b, d_x, d_size);
+	//kernel_add(int* arrayA, int* arrayB, int* arrayX, int arraySize)
+	
 	//// a^t
 	//kernel_transpose << <grid, block >> > (d_a, d_y, d_size);
 
