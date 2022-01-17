@@ -2,14 +2,14 @@
   Compiling CUDA source file matrix_operation.cu...
   
   C:\Users\Admin\source\repos\CUDA_exercise\prime_numbers>"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.5\bin\nvcc.exe" -gencode=arch=compute_52,code=\"sm_52,compute_52\" --use-local-env -ccbin "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Tools\MSVC\14.16.27023\bin\HostX86\x64" -x cu   -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.5\include" -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.5\include"  -G   --keep-dir x64\Debug  -maxrregcount=0  --machine 64 --compile -cudart static  -g  -DWIN32 -DWIN64 -D_DEBUG -D_CONSOLE -D_MBCS -Xcompiler "/EHsc /W3 /nologo /Od /Fdx64\Debug\vc141.pdb /FS /Zi /RTC1 /MDd " -o x64\Debug\matrix_operation.cu.obj "C:\Users\Admin\source\repos\CUDA_exercise\prime_numbers\matrix_operation.cu" 
-C:\Users\Admin\source\repos\CUDA_exercise\prime_numbers\matrix_operation.cu(97): error : argument of type "int *" is incompatible with parameter of type "int"
+C:\Users\Admin\source\repos\CUDA_exercise\prime_numbers\matrix_operation.cu(71): warning #192-D: unrecognized character escape sequence
   
-C:\Users\Admin\source\repos\CUDA_exercise\prime_numbers\matrix_operation.cu(48): warning #177-D: variable "y" was declared but never referenced
+C:\Users\Admin\source\repos\CUDA_exercise\prime_numbers\matrix_operation.cu(149): warning #192-D: unrecognized character escape sequence
   
-C:\Users\Admin\source\repos\CUDA_exercise\prime_numbers\matrix_operation.cu(49): warning #177-D: variable "u" was declared but never referenced
+C:\Users\Admin\source\repos\CUDA_exercise\prime_numbers\matrix_operation.cu(71): warning #192-D: unrecognized character escape sequence
   
-C:\Users\Admin\source\repos\CUDA_exercise\prime_numbers\matrix_operation.cu(50): warning #177-D: variable "w" was declared but never referenced
+C:\Users\Admin\source\repos\CUDA_exercise\prime_numbers\matrix_operation.cu(149): warning #192-D: unrecognized character escape sequence
   
-  1 error detected in the compilation of "C:/Users/Admin/source/repos/CUDA_exercise/prime_numbers/matrix_operation.cu".
   matrix_operation.cu
-C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\VC\VCTargets\BuildCustomizations\CUDA 11.5.targets(785,9): error MSB3721: Polecenie "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.5\bin\nvcc.exe" -gencode=arch=compute_52,code=\"sm_52,compute_52\" --use-local-env -ccbin "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Tools\MSVC\14.16.27023\bin\HostX86\x64" -x cu   -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.5\include" -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.5\include"  -G   --keep-dir x64\Debug  -maxrregcount=0  --machine 64 --compile -cudart static  -g  -DWIN32 -DWIN64 -D_DEBUG -D_CONSOLE -D_MBCS -Xcompiler "/EHsc /W3 /nologo /Od /Fdx64\Debug\vc141.pdb /FS /Zi /RTC1 /MDd " -o x64\Debug\matrix_operation.cu.obj "C:\Users\Admin\source\repos\CUDA_exercise\prime_numbers\matrix_operation.cu" zostało zakończone; kod błędu: 1.
+C:\Users\Admin\source\repos\CUDA_exercise\prime_numbers\matrix_operation.cu(124): warning C4244: "argument": konwersja z "time_t" do "unsigned int", możliwa utrata danych
+  prime_numbers.vcxproj -> C:\Users\Admin\source\repos\CUDA_exercise\x64\Debug\CUDA_exercise.exe
