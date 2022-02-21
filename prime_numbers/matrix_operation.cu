@@ -1,3 +1,4 @@
+
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include <stdio.h>
@@ -5,73 +6,150 @@
 #include <cstdlib>
 #include <math.h>
 #include <time.h>
+#include <chrono>
+
+using namespace std;
 
 const int maxSize = 5000;
 
 struct Matrix
 {
-	int* elements;
-
+	float* elements;
 };
 
-void generateMatrix(Matrix array, int arraySize);
-void showMstrix(Matrix array, int arraySize);
+void txtfile(float* array, int arraySize, FILE * fPtr) {
 
-__device__ void kernel_add(Matrix arrayA, Matrix arrayB, Matrix arrayX)
-{
-	int col = blockDim.x * blockIdx.x + threadIdx.x;
-	int row = blockDim.y * blockIdx.y + threadIdx.y;
+	for (int i = 0; i < arraySize; i++) {
+		for (int j = 0; j < arraySize; j++) {
 
+			fprintf(fPtr, "%f", array[i * arraySize + j]);
+			fputs("; ", fPtr);
+		}
+		fputs("\n", fPtr);
+	}
+	fclose(fPtr);
+}
 
-	if (col < maxSize && row < maxSize) {
-		arrayX.elements[row * maxSize + col] = arrayA.elements[row * maxSize + col] + arrayB.elements[row * maxSize + col];
+void checkFile(FILE * fPtr) {
+	/* fopen() return NULL if last operation was unsuccessful */
+	if (fPtr == NULL)
+	{
+		/* File not created hence exit */
+		printf("Unable to create file.\n");
+		exit(EXIT_FAILURE);
 	}
 }
 
-__device__ void kernel_add_wsp(Matrix arrayA, Matrix arrayB, Matrix arrayX, int arraySize)
+
+void generateMatrix(Matrix array, int arraySize)
+{
+	for (int i = 0; i < arraySize; i++) {
+		for (int j = 0; j < arraySize; j++) {
+			*(array.elements + i * arraySize + j) = (float)rand() / (float)(RAND_MAX / 100);
+		}
+	}
+}
+void showMstrix(Matrix array, int arraySize)
+{
+	for (int i = 0; i < arraySize; i++) {
+		printf("[");
+		for (int j = 0; j < arraySize; j++) {
+			printf(" %f ", *(array.elements + i * arraySize + j));
+		}
+		printf("]\n");
+	}
+}
+
+void addMatrix(float* arrayA, float* arrayB, float*  arrayX, int arraySize) {
+
+	for (int i = 0; i < arraySize; i++) {
+		for (int j = 0; j < arraySize; j++) {
+			arrayX[i * arraySize + j] = arrayA[i * arraySize + j] + arrayB[i * arraySize + j];
+		}
+	}
+}
+
+void substractMatrix(float* arrayA, float* arrayB, float*  arrayX, int arraySize) {
+
+	for (int i = 0; i < arraySize; i++) {
+		for (int j = 0; j < arraySize; j++) {
+			arrayX[i * arraySize + j] = arrayA[i * arraySize + j] - arrayB[i * arraySize + j];
+		}
+	}
+}
+
+void transpositionMatrix(float* arrayA, float*  arrayX, int arraySize) {
+
+	for (int i = 0; i < arraySize; i++) {
+		for (int j = 0; j < arraySize; j++) {
+			arrayX[i * arraySize + j] = arrayA[j * arraySize + i];
+		}
+	}
+}
+
+void scalar_multiplicationMatrix(float* arrayA, float* arrayX, int arraySize, int x) {
+
+	for (int i = 0; i < arraySize; i++) {
+		for (int j = 0; j < arraySize; j++) {
+			arrayX[i * arraySize + j] = x * arrayA[i * arraySize + j];
+		}
+	}
+}
+
+
+void muliplyMatrix(float* arrayA, float*  arrayB, float* arrayX, int arraySize) {
+
+	for (int i = 0; i < arraySize; i++) {
+		for (int j = 0; j < arraySize; j++) {
+			arrayX[i * arraySize + j] = 0;
+			for (int k = 0; k < arraySize; k++) {
+				arrayX[i * arraySize + j] += arrayA[i * arraySize + k] * arrayB[k * arraySize + j];
+			}
+		}
+	}
+}
+
+void matrix_CPU(float* arrayA, float* arrayB, float* arrayX, float*  arrayY, int arraySize, int w, int u) {
+
+	//// X = A *B
+	muliplyMatrix(arrayA, arrayB, arrayX, arraySize);
+	//// A^T
+	transpositionMatrix(arrayA, arrayY, arraySize);
+	//// u * a^t
+	scalar_multiplicationMatrix(arrayY, arrayY, arraySize, u);
+	// x = a * b + u * a^t
+	addMatrix(arrayX, arrayY, arrayX, arraySize);
+	// x = a * b + u * a^t + a
+	addMatrix(arrayX, arrayA, arrayX, arraySize);
+	// w* b
+	scalar_multiplicationMatrix(arrayB, arrayY, arraySize, w);
+	// x = a * b + u * a^t + a - w *b
+	substractMatrix(arrayX, arrayY, arrayX, arraySize);
+
+
+
+
+
+}
+__device__ void kernel_add(Matrix arrayA, Matrix arrayB, Matrix arrayX, int arraySize)
 {
 	int col = blockDim.x * blockIdx.x + threadIdx.x;
 	int row = blockDim.y * blockIdx.y + threadIdx.y;
 
-	__shared__  int tab[32][32];
-	__shared__  int tab2[32][32];
-
-	tab[threadIdx.y][threadIdx.x] = arrayA.elements[row * arraySize + col];
-	tab2[threadIdx.y][threadIdx.x] = arrayB.elements[row * arraySize + col];
-
-	__syncthreads();
 
 	if (col < arraySize && row < arraySize) {
-		arrayX.elements[row * arraySize + col] = tab[threadIdx.y][threadIdx.x] + tab2[threadIdx.y][threadIdx.x];
-	}
-
-}
-
-__device__ void kernel_substract(Matrix arrayA, Matrix arrayB, Matrix arrayX)
-{
-	int col = blockDim.x * blockIdx.x + threadIdx.x;
-	int row = blockDim.y * blockIdx.y + threadIdx.y;
-
-	if (col < maxSize && row < maxSize) {
-		arrayX.elements[row * maxSize + col] = arrayA.elements[row * maxSize + col] - arrayB.elements[row * maxSize + col];
+		arrayX.elements[row * arraySize + col] = arrayA.elements[row * arraySize + col] + arrayB.elements[row * arraySize + col];
 	}
 }
 
-__device__ void kernel_substract_wsp(Matrix arrayA, Matrix arrayB, Matrix arrayX, int arraySize)
+
+__device__ void kernel_substract(Matrix arrayA, Matrix arrayB, Matrix arrayX, int arraySize)
 {
 	int col = blockDim.x * blockIdx.x + threadIdx.x;
 	int row = blockDim.y * blockIdx.y + threadIdx.y;
-
-	__shared__  int tab[32][32];
-	__shared__  int tab2[32][32];
-
-	tab[threadIdx.y][threadIdx.x] = arrayA.elements[row * arraySize + col];
-	tab2[threadIdx.y][threadIdx.x] = arrayB.elements[row * arraySize + col];
-
-	__syncthreads();
 
 	if (col < arraySize && row < arraySize) {
-		arrayX.elements[row * arraySize + col] = tab[threadIdx.y][threadIdx.x] - tab2[threadIdx.y][threadIdx.x];
+		arrayX.elements[row * arraySize + col] = arrayA.elements[row * arraySize + col] - arrayB.elements[row * arraySize + col];
 	}
 }
 
@@ -87,21 +165,6 @@ __device__ void kernel_transpose(Matrix arrayA, Matrix arrayX, int arraySize)
 
 }
 
-__device__ void kernel_transpose_wsp(Matrix arrayA, Matrix arrayX, int arraySize)
-{
-	int col = blockDim.x * blockIdx.x + threadIdx.x;
-	int row = blockDim.y * blockIdx.y + threadIdx.y;
-
-	__shared__ int tab[32][32];
-	tab[threadIdx.y][threadIdx.x] = arrayA.elements[col * arraySize + row];
-	__syncthreads();
-
-	if (col < arraySize && row < arraySize) {
-		arrayX.elements[row * arraySize + col] = tab[threadIdx.y][threadIdx.x];
-	}
-
-}
-
 __device__ void kernel_scalar(Matrix arrayA, Matrix arrayX, int x, int arraySize)
 {
 	int col = blockDim.x * blockIdx.x + threadIdx.x;
@@ -110,19 +173,6 @@ __device__ void kernel_scalar(Matrix arrayA, Matrix arrayX, int x, int arraySize
 	arrayX.elements[row * arraySize + col] = x * arrayA.elements[row * arraySize + col];
 }
 
-__device__ void kernel_scalar_wsp(Matrix arrayA, Matrix arrayX, int x, int arraySize)
-{
-	int col = blockDim.x * blockIdx.x + threadIdx.x;
-	int row = blockDim.y * blockIdx.y + threadIdx.y;
-
-	__shared__ int tab[32][32];
-	__shared__ int tab2[32][32];
-	tab[threadIdx.y][threadIdx.x] = arrayA.elements[row * arraySize + col];
-	tab2[threadIdx.y][threadIdx.x] = x;
-	__syncthreads();
-
-	arrayX.elements[row * arraySize + col] = tab2[threadIdx.y][threadIdx.x] * tab[threadIdx.y][threadIdx.x];
-}
 
 __device__ void kernel_multiply(Matrix arrayA, Matrix arrayB, Matrix arrayX, int arraySize)
 {
@@ -140,32 +190,6 @@ __device__ void kernel_multiply(Matrix arrayA, Matrix arrayB, Matrix arrayX, int
 	}
 }
 
-__device__ void kernel_multiply_wsp(Matrix arrayA, Matrix arrayB, Matrix arrayX, int arraySize)
-{
-	int col = blockDim.x * blockIdx.x + threadIdx.x;
-	int row = blockDim.y * blockIdx.y + threadIdx.y;
-
-	__shared__ int tab[32][32];
-	__shared__ int tab2[32][32];
-
-	int sum = 0;
-	// int idx;
-
-	if (col < arraySize && row < arraySize) {
-		for (int i = 0; i < arraySize; i++) {
-
-			tab[threadIdx.y][threadIdx.x] = arrayA.elements[row * arraySize + i];
-			tab2[threadIdx.y][threadIdx.x] = arrayB.elements[i *arraySize + col];
-			__syncthreads();
-
-			sum += tab[threadIdx.y][threadIdx.x] * tab2[threadIdx.y][threadIdx.x];
-			__syncthreads();
-		}
-
-		arrayX.elements[row * arraySize + col] = sum;
-		//__syncthreads();
-	}
-}
 
 __global__ void kernel(Matrix arrayA, Matrix arrayB, Matrix arrayX, Matrix arrayY, int arraySize, int w, int u) {
 
@@ -176,58 +200,121 @@ __global__ void kernel(Matrix arrayA, Matrix arrayB, Matrix arrayX, Matrix array
 	kernel_scalar(arrayX, arrayX, u, arraySize);
 	__syncthreads();
 	// X = u * A^T + A
-	kernel_add(arrayX, arrayA, arrayX);
+	kernel_add(arrayX, arrayA, arrayX, arraySize);
 	__syncthreads();
-
+	//// Y = A * B
+	kernel_multiply(arrayA, arrayB, arrayX, arraySize);
+	__syncthreads();
+	//// X = A * B + u * A^T + A
+	kernel_add(arrayX, arrayY, arrayX, arraySize);
+	__syncthreads();
 	// Y = w * B
 	kernel_scalar(arrayB, arrayY, w, arraySize);
 	__syncthreads();
 	// X = A * B + u * A^T + A - w * B
-	kernel_substract(arrayX, arrayY, arrayX);
+	kernel_substract(arrayX, arrayY, arrayX, arraySize);
 	__syncthreads();
 
-	//// Y = A * B
-	kernel_multiply(arrayA, arrayB, arrayY, arraySize);
-	__syncthreads();
-	//// X = A * B + u * A^T + A
-	kernel_add(arrayX, arrayY, arrayX);
-	__syncthreads();
-	
 }
+
+
+__device__ void kernel_multiply_wsp(Matrix arrayA, Matrix arrayB, Matrix arrayX, int arraySize)
+{
+	int col = blockDim.x * blockIdx.x + threadIdx.x;
+	int row = blockDim.y * blockIdx.y + threadIdx.y;
+
+	__shared__ float tabA[32][32];
+	__shared__ float tabB[32][32];
+
+	int tmp = 0;
+
+	for (int i = 0; i < gridDim.x; i++) {
+		if (row * arraySize + i * blockDim.x + threadIdx.x < arraySize*arraySize) {
+			tabA[threadIdx.y][threadIdx.x] = arrayA.elements[row * arraySize + i * blockDim.x + threadIdx.x];
+		}
+		else {
+			tabA[threadIdx.y][threadIdx.x] = 0;
+		}
+		if (i* blockDim.y + threadIdx.y + col * arraySize < arraySize*arraySize) {
+			tabB[threadIdx.y][threadIdx.x] = arrayB.elements[(i* blockDim.y + threadIdx.y)*arraySize + col];
+		}
+		else {
+			tabB[threadIdx.y][threadIdx.x] = 0;
+		}
+		__syncthreads();
+
+		for (int k = 0; k < blockDim.x; k++) {
+			tmp += tabA[threadIdx.y][k] * tabB[k][threadIdx.x];
+		}
+		__syncthreads();
+
+
+	}
+
+	if (row < arraySize && col < arraySize)
+	{
+		arrayX.elements[row *arraySize + col] = tmp;
+	}
+
+
+}
+
+
+
+
+__device__ void kernel_transpose_wsp(Matrix arrayA, Matrix arrayX, int arraySize)
+{
+
+	int col = blockDim.x * blockIdx.x + threadIdx.x;
+	int row = blockDim.y * blockIdx.y + threadIdx.y;
+
+	__shared__ float tabX[32][32];
+
+	tabX[threadIdx.y][threadIdx.x] = arrayA.elements[col * arraySize + row];
+
+	__syncthreads();
+
+	if (col < arraySize && row < arraySize) {
+
+		arrayX.elements[row * arraySize + col] = tabX[threadIdx.y][threadIdx.x];
+	}
+
+}
+
+
+
 
 __global__ void kernel_wsp(Matrix arrayA, Matrix arrayB, Matrix arrayX, Matrix arrayY, int arraySize, int w, int u) {
 
+
 	// X = A^T
-    kernel_transpose_wsp( arrayA,  arrayX,  arraySize);
-    __syncthreads();
-	// X = u * A^T
-    kernel_scalar_wsp(arrayX, arrayX,  u, arraySize);
-    __syncthreads();
-	// X = u * A^T + A
-    kernel_add_wsp( arrayX,  arrayA,  arrayX,  arraySize);
-    __syncthreads();
-
-	// Y = w * B
-    kernel_scalar_wsp(arrayB, arrayY,  w, arraySize);
-    __syncthreads();
-	// X = A * B + u * A^T + A - w * B
-    kernel_substract_wsp(arrayX, arrayY, arrayX,  arraySize);
+	kernel_transpose_wsp(arrayA, arrayX, arraySize);
 	__syncthreads();
-	// Y = A * B
+	// X = u * A^T
+	kernel_scalar(arrayX, arrayX, u, arraySize);
+	__syncthreads();
+	// X = u * A^T + A
+	kernel_add(arrayX, arrayA, arrayX, arraySize);
+	__syncthreads();
+	//// Y = A * B
 	kernel_multiply_wsp(arrayA, arrayB, arrayY, arraySize);
-	//kernel_add_wsp(arrayA, arrayB, arrayX, arraySize);
-	//__syncthreads();
-	// X = A * B + u * A^T + A
-	//kernel_add_wsp( arrayX,  arrayY,  arrayX,  arraySize);
-   //__syncthreads();
-	
+	__syncthreads();
+	//// X = A * B + u * A^T + A
+	kernel_add(arrayX, arrayY, arrayX, arraySize);
+	__syncthreads();
+	// Y = w * B
+	kernel_scalar(arrayB, arrayY, w, arraySize);
+	__syncthreads();
+	// X = A * B + u * A^T + A - w * B
+	kernel_substract(arrayX, arrayY, arrayX, arraySize);
+	__syncthreads();
+
+
 }
-
-
 void matrix_GPU(Matrix arrayA, Matrix  arrayB, Matrix  arrayX, Matrix  arrayY, int arraySize, int w, int u) {
 
 	Matrix d_a, d_b, d_x, d_y;
-	int cuda_malloc2 = sizeof(int) * maxSize*maxSize;
+	int cuda_malloc2 = sizeof(float) * maxSize*maxSize;
 
 	cudaMalloc(&d_a.elements, cuda_malloc2);
 	cudaMalloc(&d_b.elements, cuda_malloc2);
@@ -237,22 +324,34 @@ void matrix_GPU(Matrix arrayA, Matrix  arrayB, Matrix  arrayX, Matrix  arrayY, i
 	cudaMemcpy(d_a.elements, arrayA.elements, cuda_malloc2, cudaMemcpyHostToDevice);
 	cudaMemcpy(d_b.elements, arrayB.elements, cuda_malloc2, cudaMemcpyHostToDevice);
 
-	int z = arraySize + 1 / 32;
-	dim3 block(32, 32);
-	dim3 grid(z, z);
+	int blockSize = arraySize;
+	if (arraySize > 32) {
+		for (int i = 1; i <= 32; i++) {
+			if (arraySize%i == 0) {
+				blockSize = i;
+			}
+		}
+	}
+
+	dim3 block(blockSize, blockSize);
+	dim3 grid(arraySize / block.x, arraySize / block.y);
 
 	kernel << < grid, block >> > (d_a, d_b, d_x, d_y, arraySize, w, u);
 
 	cudaMemcpy(arrayX.elements, d_x.elements, cuda_malloc2, cudaMemcpyDeviceToHost);
-
 	cudaFree(d_a.elements); cudaFree(d_b.elements); cudaFree(d_x.elements); cudaFree(d_y.elements);
+
+}
+
+__global__ void dummy() {
 
 }
 
 void matrix_WSP(Matrix arrayA, Matrix  arrayB, Matrix  arrayX, Matrix  arrayY, int arraySize, int w, int u) {
 
 	Matrix d_a, d_b, d_x, d_y;
-	int cuda_malloc2 = sizeof(int) * maxSize*maxSize;
+	int cuda_malloc2 = sizeof(float) * maxSize*maxSize;
+
 
 	cudaMalloc(&d_a.elements, cuda_malloc2);
 	cudaMalloc(&d_b.elements, cuda_malloc2);
@@ -262,155 +361,116 @@ void matrix_WSP(Matrix arrayA, Matrix  arrayB, Matrix  arrayX, Matrix  arrayY, i
 	cudaMemcpy(d_a.elements, arrayA.elements, cuda_malloc2, cudaMemcpyHostToDevice);
 	cudaMemcpy(d_b.elements, arrayB.elements, cuda_malloc2, cudaMemcpyHostToDevice);
 
-	int z = arraySize + 1 / 32;
-	dim3 block(32, 32);
-	dim3 grid(z, z);
+	int blockSize = arraySize;
+	if (arraySize > 32) {
+		for (int i = 1; i <= 32; i++) {
+			if (arraySize%i == 0) {
+				blockSize = i;
+			}
+		}
+	}
+
+	dim3 block(blockSize, blockSize);
+	dim3 grid(arraySize / block.x, arraySize / block.y);
 
 	kernel_wsp << < grid, block >> > (d_a, d_b, d_x, d_y, arraySize, w, u);
 
 	cudaMemcpy(arrayX.elements, d_x.elements, cuda_malloc2, cudaMemcpyDeviceToHost);
-	//cudaMemcpy(arrayY.elements, d_y.elements, cuda_malloc2, cudaMemcpyDeviceToHost);
-
 	cudaFree(d_a.elements); cudaFree(d_b.elements); cudaFree(d_x.elements); cudaFree(d_y.elements);
 
 }
 
-void muliplyMatrix(int** arrayA, int**   arrayB, int**  arrayX, int arraySize) {
-	
-	for (int i = 0; i < arraySize; i++) {
-		for (int j = 0; j < arraySize; j++) {
-			arrayX[i][j] = 0;
-			for (int k = 0; k < arraySize; k++) {
-				arrayX[i][j] += arrayA[i][k] * arrayB[k][j];
-			}
-		}
-	}
-}
-
-void addMatrix(int**  arrayA, int** arrayB, int**   arrayX, int arraySize) {
-
-	for (int i = 0; i < arraySize; i++) {
-		for (int j = 0; j < arraySize; j++) {
-			arrayX[i][j] = arrayA[i][j] + arrayB[i][j];
-		}
-	}
-}
-void substractMatrix(int**  arrayA, int** arrayB, int**   arrayX, int arraySize) {
-
-	for (int i = 0; i < arraySize; i++) {
-		for (int j = 0; j < arraySize; j++) {
-			arrayX[i][j] = arrayA[i][j] - arrayB[i][j];
-		}
-	}
-}
-void transpositionMatrix(int**  arrayA, int**   arrayX, int arraySize) {
-	
-	for (int i = 0; i < arraySize; i++) {
-		for (int j = 0; j < arraySize; j++) {
-			arrayX[i][j] = arrayA[j][i];
-		}
-	}
-}
-void scalar_multiplicationMatrix(int** arrayA, int**  arrayX, int arraySize, int x) {
-	
-	for (int i = 0; i < arraySize; i++) {
-		for (int j = 0; j < arraySize; j++) {
-			arrayX[i][j] = x * arrayA[i][j];
-		}
-	}
-}
-
-void matrix_CPU(int** arrayA, int** arrayB, int** arrayX, int**  arrayY, int arraySize, int w, int u){
-
-	// X = A *B
-	muliplyMatrix(arrayA, arrayB, arrayX, arraySize);
-	// A^T
-	transpositionMatrix(arrayA, arrayY, arraySize);
-	// u * a^t
-	scalar_multiplicationMatrix(arrayY, arrayY, arraySize, u);
-	// x = a * b + u * a^t
-	addMatrix(arrayX, arrayY, arrayX, arraySize);
-	// x = a * b + u * a^t + a
-	addMatrix(arrayX, arrayA, arrayX, arraySize);
-	// w* b
-	scalar_multiplicationMatrix(arrayB, arrayY, arraySize, w);
-	// x = a * b + u * a^t + a - w *b
-	substractMatrix(arrayX, arrayY, arrayX, arraySize);
-
-}
 
 int main() {
 
 	Matrix a, b, x_cpu, x_gpu, x_wsp, y, y2;
 	srand(time(NULL));
-	int size = 3;
 	int w = 2;
 	int u = 6;
-	int cuda_malloc = sizeof(int) * maxSize*maxSize;
-	a.elements = (int*)malloc(cuda_malloc);
-	b.elements = (int*)malloc(cuda_malloc);
-	x_cpu.elements = (int*)malloc(cuda_malloc);
-	x_gpu.elements = (int*)malloc(cuda_malloc);
-	x_wsp.elements = (int*)malloc(cuda_malloc);
-	y.elements = (int*)malloc(cuda_malloc);
-	y2.elements = (int*)malloc(cuda_malloc);
+	FILE * fPtr;
+	int size;
+
+	printf("Podaj rozmiar macierzy : ");
+	scanf("%d", &size);
+
+	dummy << <1, 1 >> > ();
+
+	int cuda_malloc = sizeof(float) * maxSize*maxSize;
+	a.elements = (float*)malloc(cuda_malloc);
+	b.elements = (float*)malloc(cuda_malloc);
+	x_cpu.elements = (float*)malloc(cuda_malloc);
+	x_gpu.elements = (float*)malloc(cuda_malloc);
+	x_wsp.elements = (float*)malloc(cuda_malloc);
+	y.elements = (float*)malloc(cuda_malloc);
+	y2.elements = (float*)malloc(cuda_malloc);
 
 	generateMatrix(a, size);
-	printf("\nMacierz A:\n ");
-	showMstrix(a, size);
+	//printf("\nMacierz A:\n ");
+	//showMstrix(a, size);
 
 	generateMatrix(b, size);
-	printf("\nMacierz B:\n ");
-	showMstrix(b, size);
-
-	matrix_GPU(a, b, x_cpu, y, size, w, u);
+	//printf("\nMacierz B:\n ");
+	//showMstrix(b, size);
 
 	printf("\n----------------CPU-------------- :\n ");
-	printf("\nMacierz X:\n ");
-	showMstrix(x_cpu, size);
 
+	auto CPUstart = chrono::steady_clock::now();
+	matrix_CPU(a.elements, b.elements, x_cpu.elements, y.elements, size, w, u);
+	auto CPUend = chrono::steady_clock::now();
+	chrono::duration<double> elapsedCPU = CPUend - CPUstart;
 
-	printf("\nMacierz Y :\n ");
-	showMstrix(y, size);
+	printf("\nCode executed in %f ms.\n", elapsedCPU.count());
+	//printf("\nMacierz X:\n ");
+	//showMstrix(x_cpu, size);
 
 	printf("\n----------------GPU-------------- :\n ");
 
-	matrix_GPU(a, b, x_gpu,y2, size, w,  u);
+	auto GPUstart = chrono::steady_clock::now();
+	matrix_GPU(a, b, x_gpu, y2, size, w, u);
+	auto GPUend = chrono::steady_clock::now();
+	chrono::duration<double> elapsedGPU = GPUend - GPUstart;
 
-	//matrix_WSP(a, b, x_wsp, y2, size, w, u);
+	printf("\nCode executed in %f ms.\n", elapsedGPU.count());
+	//printf("\nMacierz X GPU:\n ");
+	//showMstrix(x_gpu, size);
 
-    printf("\nMacierz X:\n ");
-    showMstrix(x_gpu, size);
-
-	printf("\nMacierz Y :\n ");
-	showMstrix(y2, size);
 
 	printf("\n----------------GPU WSP-------------- :\n ");
 
+	auto WSPstart = chrono::steady_clock::now();
 	matrix_WSP(a, b, x_wsp, y2, size, w, u);
+	auto WSPend = chrono::steady_clock::now();
+	chrono::duration<double> elapsedWSP = WSPend - WSPstart;
 
-	printf("\nMacierz X WSP:\n ");
-	showMstrix(x_wsp, size);
+	printf("\nCode executed in %f ms.\n\n", elapsedWSP.count());
+	//printf("\nMacierz X WSP:\n ");
+	//showMstrix(x_wsp, size);
+
+
+	//fPtr = fopen("A.txt", "w");
+	//checkFile(fPtr);
+	//txtfile(a.elements, size, fPtr);
+	//fclose(fPtr);
+
+	//fPtr = fopen("B.txt", "w");
+	//checkFile(fPtr);
+	//txtfile(b.elements, size, fPtr);
+	//fclose(fPtr);
+
+	//fPtr = fopen("X_CPU.txt", "w");
+	//checkFile(fPtr);
+	//txtfile(x_cpu.elements, size, fPtr);
+	//fclose(fPtr);
+
+	//fPtr = fopen("X_WSP.txt", "w");
+	//checkFile(fPtr);
+	//txtfile(x_wsp.elements, size, fPtr);
+	//fclose(fPtr);
+
+	//fPtr = fopen("X_GPU.txt", "w");
+	//checkFile(fPtr);
+	//txtfile(x_gpu.elements, size, fPtr);
+	//fclose(fPtr);
 
 	return 0;
-}
-
-
-void generateMatrix(Matrix array, int arraySize)
-{
-	for (int i = 0; i < arraySize; i++) {
-		for (int j = 0; j < arraySize; j++) {
-			*(array.elements + i * arraySize + j) = (rand() % (10 + 1 + 10) - 10);
-		}
-	}
-}
-void showMstrix(Matrix array, int arraySize)
-{
-	for (int i = 0; i < arraySize; i++) {
-		printf("[");
-		for (int j = 0; j < arraySize; j++) {
-			printf(" %d ", *(array.elements + i * arraySize + j));
-		}
-		printf("]\n");
-	}
 }
