@@ -3,30 +3,15 @@
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
+#include <iostream>
+#include <omp.h>
+#include <chrono>
+
+using namespace std;
+
 
 bool prime_CPU(unsigned long long int a);
 bool prime_GPU(unsigned long long int a, bool gpu_prime);
-bool prime_GPU_wsp(unsigned long long int a, bool gpu_prime);
-
-
-__global__ void kernel_wsp(unsigned long long int* d_a, bool* d_c)
-{
-	int i = threadIdx.x + blockIdx.x * blockDim.x + 1;
-
-	__shared__ unsigned long long int tab[64];
-	__shared__ unsigned long long int tab2[64];
-
-	int x = threadIdx.x;
-	tab[x] = 2 * i + 1;
-	tab2[x] = *d_a;
-
-	__syncthreads();
-
-	if (tab2[threadIdx.x] % tab[threadIdx.x] == 0) {
-		*d_c = false;
-	}
-}
-
 
 __global__ void kernel(unsigned long long int* d_a, bool* d_c)
 {
@@ -36,16 +21,42 @@ __global__ void kernel(unsigned long long int* d_a, bool* d_c)
 		*d_c = false;
 	}
 }
+__global__ void  dummy() {
+
+}
+
+bool prime_OMP(unsigned long long int a) {
+	bool prime = true;
+	long long int pierwiastek = sqrt(a) + 2;
+
+#pragma omp parallel for
+	for (long long i = 3; i < pierwiastek; i = i + 2) {
+		if (a % i == 0) {
+			prime = false;
+			break;
+		}
+	}
+
+
+
+	return prime;
+
+
+}
+
+
 int main()
 {
 	//unsigned long long int a;
 	//printf("Podaj liczbe do sprawdzenia:");
 	//scanf("%llu", &a);
-	clock_t t;
 	bool gpu_prime = true;
 	bool gpu_prime_wsp = true;
+	dummy << <1, 1 >> > ();
 
-	unsigned long long int liczby_testowe[6] = { 524287 ,2147483647 ,2305843009213693951 ,274876858369 ,4611686014132420609 ,1125897758834689 };
+
+	unsigned long long int liczby_testowe[6] = { 524287 ,2147483647  ,274876858369  ,1125897758834689 ,2305843009213693951 ,4611686014132420609 };
+
 
 	for (int i = 0; i < 6; i++)
 	{
@@ -60,11 +71,29 @@ int main()
 			printf("Liczba jest pierwsza");
 			return (0);
 		}
-		printf("\n-------------CPU----------------\n");
-		t = clock();
-		bool prime_cpu = prime_CPU(proba);
-		t = clock() - t;
-		double time = (((double)t) / CLOCKS_PER_SEC)*1000;
+		printf("\n-------------CPU ----------------\n");
+
+		auto CPUstart = chrono::steady_clock::now();
+		bool prime_cmp = prime_CPU(proba);
+		auto CPUend = chrono::steady_clock::now();
+		chrono::duration<double> elapsedCPU = CPUend - CPUstart;
+
+		if (prime_cmp == true) {
+			printf("Podana liczba jest liczba pierwsza.");
+		}
+		else
+		{
+			printf("Podana liczba jest zlozona.");
+		}
+		printf("\nCode executed in %f ms.\n", elapsedCPU.count());
+
+		printf("\n-------------CPU OpenMP----------------\n");
+
+		auto CMPstart = chrono::steady_clock::now();
+		bool prime_cpu = prime_OMP(proba);
+		auto CMPend = chrono::steady_clock::now();
+		chrono::duration<double> elapsedCMP = CMPend - CMPstart;
+
 		if (prime_cpu == true) {
 			printf("Podana liczba jest liczba pierwsza.");
 		}
@@ -72,13 +101,17 @@ int main()
 		{
 			printf("Podana liczba jest zlozona.");
 		}
-		printf("\nCzas : %f [ms]", time);
+		printf("\nCode executed in %f ms.\n", elapsedCMP.count());
+
+
 
 		printf("\n-------------GPU ----------------\n");
-		t = clock();
+
+		auto GPUstart = chrono::steady_clock::now();
 		bool gpu3 = prime_GPU(proba, gpu_prime);
-		t = clock() - t;
-		time = (((double)t) / CLOCKS_PER_SEC)*1000;
+		auto GPUend = chrono::steady_clock::now();
+		chrono::duration<double> elapsedGPU = GPUend - GPUstart;
+
 		if (gpu3 == true) {
 			printf("Podana liczba jest liczba pierwsza.");
 		}
@@ -86,22 +119,9 @@ int main()
 		{
 			printf("Podana liczba jest zlozona.");
 		}
-		printf("\nCzas : %f [ms]", time);
 
+		printf("\nCode executed in %f ms.\n\n", elapsedGPU.count());
 
-		printf("\n-------------GPU WSP  ----------------\n");
-		t = clock();
-		bool gpuwsp3 = prime_GPU_wsp(proba, gpu_prime_wsp);
-		t = clock() - t;
-		time = (((double)t) / CLOCKS_PER_SEC)*1000;
-		if (gpuwsp3 == true) {
-			printf("Podana liczba jest liczba pierwsza.");
-		}
-		else
-		{
-			printf("Podana liczba jest zlozona.");
-		}
-		printf("\nCzas : %f [ms]\n\n", time);
 
 	}
 	return (0);
@@ -116,7 +136,6 @@ bool prime_CPU(unsigned long long int a) {
 	}
 	return prime_cpu;
 }
-
 
 
 bool prime_GPU(unsigned long long int a, bool gpu_prime) {
@@ -143,24 +162,3 @@ bool prime_GPU(unsigned long long int a, bool gpu_prime) {
 
 
 
-bool prime_GPU_wsp(unsigned long long int a, bool gpu_prime) {
-	unsigned long long int lim = sqrt(a);
-	unsigned long long int* d_a = 0;
-	bool* d_c;
-	cudaError_t cudaStatus;
-	cudaStatus = cudaMalloc((void**)&d_a, sizeof(unsigned long long int));
-	cudaStatus = cudaMalloc((void**)&d_c, sizeof(bool));
-
-	cudaStatus = cudaMemcpy(d_a, &a, sizeof(unsigned long long int), cudaMemcpyHostToDevice);
-	cudaStatus = cudaMemcpy(d_c, &gpu_prime, sizeof(bool), cudaMemcpyHostToDevice);
-	long int x = (lim / 32 + 1) / 2;
-	dim3 block(32);
-	dim3 grid(x);
-	kernel_wsp << <grid, block >> > (d_a, d_c);
-	cudaStatus = cudaMemcpy(&a, d_a, sizeof(unsigned long long int), cudaMemcpyDeviceToHost);
-	cudaStatus = cudaMemcpy(&gpu_prime, d_c, sizeof(bool), cudaMemcpyDeviceToHost);
-
-	cudaFree(d_a);
-	cudaFree(d_c);
-	return gpu_prime;
-}

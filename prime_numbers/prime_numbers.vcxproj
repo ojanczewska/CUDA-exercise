@@ -80,6 +80,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <CudaCompile Include="matrix_operation.cu" />
+    <CudaCompile Include="numerical_integration.cu" />
     <CudaCompile Include="prime_numbers.cu" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
