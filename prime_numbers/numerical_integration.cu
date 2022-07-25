@@ -1,5 +1,3 @@
-// Aleksandra Janczewska 175962
-
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include <stdio.h>
@@ -11,7 +9,7 @@
 
 using namespace std;
 
-// Liczba punktów =  NUM_VALS = THREADS * BLOCKS
+// Liczba punktÃ³w =  NUM_VALS = THREADS * BLOCKS
 #define THREADS 16
 #define BLOCKS  64
 #define NUM_VALS THREADS*BLOCKS
